@@ -138,6 +138,7 @@ public class RoomController {
         return new ResponseEntity<>(resMap, HttpStatus.OK);
     }
 
+    
     @Operation(summary = "게임 시작", description = "추노 노비 정함, 노비 문서 위치, 방 정보 전달")
     @ApiResponse(
             content = {
