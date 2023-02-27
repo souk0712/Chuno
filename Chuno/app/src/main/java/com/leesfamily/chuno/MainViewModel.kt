@@ -57,6 +57,10 @@ class MainViewModel : ViewModel() {
             }
         }
     }
+    fun buyItem(itemId:Int){
+        val userItems = _user.value?.items?.toMutableList()
+        userItems?.set(itemId, 1)
+    }
 
     fun setToken(token: String) {
         viewModelScope.launch(Dispatchers.IO) {

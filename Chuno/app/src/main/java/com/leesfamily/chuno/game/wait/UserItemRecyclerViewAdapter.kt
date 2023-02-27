@@ -1,16 +1,11 @@
 package com.leesfamily.chuno.game.wait
 
-import androidx.recyclerview.widget.RecyclerView
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import com.leesfamily.chuno.R
+import androidx.recyclerview.widget.RecyclerView
 import com.leesfamily.chuno.databinding.FragmentUserItemBinding
-
-import com.leesfamily.chuno.game.wait.placeholder.PlaceholderContent.PlaceholderItem
 import com.leesfamily.chuno.network.data.Player
-import com.leesfamily.chuno.network.data.User
 
 class UserItemRecyclerViewAdapter(
     private val values: ArrayList<Player>?,
@@ -31,8 +26,8 @@ class UserItemRecyclerViewAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         if (values != null) {
             val item = values[position]
-            holder.idView.text = item.clientLevel
-            holder.contentView.text = item.clientData
+            holder.idView.text = item.level
+            holder.contentView.text = item.nickname
         }
     }
 

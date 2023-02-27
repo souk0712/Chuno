@@ -18,6 +18,7 @@ import com.leesfamily.chuno.network.data.Item
 import com.leesfamily.chuno.network.data.User
 import com.leesfamily.chuno.network.item.ItemGetter
 import com.leesfamily.chuno.network.login.LoginGetter
+import com.leesfamily.chuno.network.websocket.WebSocketManager
 import com.leesfamily.chuno.util.NetworkManager
 import com.leesfamily.chuno.util.PermissionHelper
 import com.leesfamily.chuno.util.login.LoginPrefManager
@@ -95,6 +96,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        WebSocketManager.close()
+        Log.d(TAG, "onDestroy: MainActivity")
     }
 
     fun navigate() {

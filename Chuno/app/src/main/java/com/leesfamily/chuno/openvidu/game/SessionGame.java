@@ -1,4 +1,3 @@
-/*
 package com.leesfamily.chuno.openvidu.game;
 
 import android.os.AsyncTask;
@@ -6,9 +5,12 @@ import android.util.Log;
 import android.view.View;
 
 import androidx.viewpager2.widget.ViewPager2;
+
+import com.leesfamily.chuno.game.game.GameViewFragment;
 import com.leesfamily.chuno.openvidu.observers.CustomPeerConnectionObserver;
 import com.leesfamily.chuno.openvidu.observers.CustomSdpObserver;
-import com.leesfamily.chuno.openvidu.websocket.CustomWebSocket;
+import com.leesfamily.chuno.openvidu.websocket.CustomWebSocketGame;
+
 import org.webrtc.IceCandidate;
 import org.webrtc.MediaConstraints;
 import org.webrtc.MediaStream;
@@ -23,6 +25,7 @@ import org.webrtc.SoftwareVideoDecoderFactory;
 import org.webrtc.SoftwareVideoEncoderFactory;
 import org.webrtc.VideoDecoderFactory;
 import org.webrtc.VideoEncoderFactory;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -30,10 +33,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class Session {
+public class SessionGame {
 
-    private LocalParticipant localParticipant;
-    private Map<String, RemoteParticipant> remoteParticipants = new HashMap<>();
+    private LocalParticipantGame localParticipantGame;
+    private Map<String, RemoteParticipantGame> remoteParticipants = new HashMap<>();
     private String id;
     private String token;
 
@@ -43,13 +46,15 @@ public class Session {
 
     private ViewPager2 views_container;
     private PeerConnectionFactory peerConnectionFactory;
-    private CustomWebSocket websocket;
+    private CustomWebSocketGame websocket;
     private GameViewFragment fragment;
 
-    public Session(String id, String token) {
+    public SessionGame(String id, String token, ViewPager2 views_container, GameViewFragment fragment) {
         this.id = id;
         this.token = token;
-
+        this.views_container = views_container;
+        this.fragment = fragment;
+        Log.d("추노", "SessionGame: fragment : " + this.fragment);
         // 세션 구성을 위해 PeerConnectionFactory를 초기화하고 빌드한다.
         // 이것은 Google WebRTC 라이브러리와 WebRTCPeer연결을 초기화하는 방법이다.
         // Creating a new PeerConnectionFactory instance
@@ -72,14 +77,7 @@ public class Session {
                 .createPeerConnectionFactory();
     }
 
-    public Session(String id, String token, ViewPager2 views_container, GameViewFragment fragment) {
-        this(id,token);
-        this.views_container = views_container;
-        this.fragment = fragment;
-
-    }
-
-    public void setWebSocket(CustomWebSocket websocket) {
+    public void setWebSocket(CustomWebSocketGame websocket) {
         this.websocket = websocket;
     }
 
@@ -100,29 +98,29 @@ public class Session {
             @Override
             public void onIceCandidate(IceCandidate iceCandidate) {
                 super.onIceCandidate(iceCandidate);
-                websocket.onIceCandidate(iceCandidate, localParticipant.getConnectionId());
+                websocket.onIceCandidate(iceCandidate, localParticipantGame.getConnectionId());
             }
 
             @Override
             public void onSignalingChange(PeerConnection.SignalingState signalingState) {
                 if (PeerConnection.SignalingState.STABLE.equals(signalingState)) {
                     // SDP Offer/Answer finished. Add stored remote candidates.
-                    Iterator<IceCandidate> it = localParticipant.getIceCandidateList().iterator();
+                    Iterator<IceCandidate> it = localParticipantGame.getIceCandidateList().iterator();
                     while (it.hasNext()) {
                         IceCandidate candidate = it.next();
-                        localParticipant.getPeerConnection().addIceCandidate(candidate);
+                        localParticipantGame.getPeerConnection().addIceCandidate(candidate);
                         it.remove();
                     }
                 }
             }
         });
 
-        if (localParticipant.getAudioTrack() != null) {
-            peerConnection.addTransceiver(localParticipant.getAudioTrack(),
+        if (localParticipantGame.getAudioTrack() != null) {
+            peerConnection.addTransceiver(localParticipantGame.getAudioTrack(),
                     new RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.SEND_ONLY));
         }
-        if (localParticipant.getVideoTrack() != null) {
-            peerConnection.addTransceiver(localParticipant.getVideoTrack(),
+        if (localParticipantGame.getVideoTrack() != null) {
+            peerConnection.addTransceiver(localParticipantGame.getVideoTrack(),
                     new RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.SEND_ONLY));
         }
 
@@ -159,7 +157,7 @@ public class Session {
             public void onSignalingChange(PeerConnection.SignalingState signalingState) {
                 if (PeerConnection.SignalingState.STABLE.equals(signalingState)) {
                     // SDP Offer/Answer finished. Add stored remote candidates.
-                    final RemoteParticipant remoteParticipant = remoteParticipants.get(connectionId);
+                    final RemoteParticipantGame remoteParticipant = remoteParticipants.get(connectionId);
                     Iterator<IceCandidate> it = remoteParticipant.getIceCandidateList().iterator();
                     while (it.hasNext()) {
                         IceCandidate candidate = it.next();
@@ -179,12 +177,12 @@ public class Session {
     }
 
     public void createOfferForPublishing(MediaConstraints constraints) {
-        localParticipant.getPeerConnection().createOffer(new CustomSdpObserver("createOffer") {
+        localParticipantGame.getPeerConnection().createOffer(new CustomSdpObserver("createOffer") {
             @Override
             public void onCreateSuccess(SessionDescription sdp) {
                 super.onCreateSuccess(sdp);
                 Log.i("createOffer SUCCESS", sdp.toString());
-                localParticipant.getPeerConnection().setLocalDescription(new CustomSdpObserver("createOffer_setLocalDescription") {
+                localParticipantGame.getPeerConnection().setLocalDescription(new CustomSdpObserver("createOffer_setLocalDescription") {
                     @Override
                     public void onSetSuccess() {
                         super.onSetSuccess();
@@ -195,7 +193,7 @@ public class Session {
         }, constraints);
     }
 
-    public void createAnswerForSubscribing(RemoteParticipant remoteParticipant, String streamId, MediaConstraints constraints) {
+    public void createAnswerForSubscribing(RemoteParticipantGame remoteParticipant, String streamId, MediaConstraints constraints) {
         remoteParticipant.getPeerConnection().createAnswer(new CustomSdpObserver("createAnswerSubscribing") {
             @Override
             public void onCreateSuccess(SessionDescription sdp) {
@@ -224,15 +222,15 @@ public class Session {
         this.iceServers = iceServers;
     }
 
-    public LocalParticipant getLocalParticipant() {
-        return this.localParticipant;
+    public LocalParticipantGame getLocalParticipant() {
+        return this.localParticipantGame;
     }
 
-    public void setLocalParticipant(LocalParticipant localParticipant) {
-        this.localParticipant = localParticipant;
+    public void setLocalParticipant(LocalParticipantGame localParticipantGame) {
+        this.localParticipantGame = localParticipantGame;
     }
 
-    public RemoteParticipant getRemoteParticipant(String id) {
+    public RemoteParticipantGame getRemoteParticipant(String id) {
         return this.remoteParticipants.get(id);
     }
 
@@ -240,11 +238,11 @@ public class Session {
         return this.peerConnectionFactory;
     }
 
-    public void addRemoteParticipant(RemoteParticipant remoteParticipant) {
+    public void addRemoteParticipant(RemoteParticipantGame remoteParticipant) {
         this.remoteParticipants.put(remoteParticipant.getConnectionId(), remoteParticipant);
     }
 
-    public RemoteParticipant removeRemoteParticipant(String id) {
+    public RemoteParticipantGame removeRemoteParticipant(String id) {
         return this.remoteParticipants.remove(id);
     }
 
@@ -255,10 +253,10 @@ public class Session {
                 websocket.leaveRoom();
                 websocket.disconnect();
             }
-            this.localParticipant.dispose();
+            this.localParticipantGame.dispose();
         });
         fragment.requireActivity().runOnUiThread(() -> {
-            for (RemoteParticipant remoteParticipant : remoteParticipants.values()) {
+            for (RemoteParticipantGame remoteParticipant : remoteParticipants.values()) {
                 if (remoteParticipant.getPeerConnection() != null) {
                     remoteParticipant.getPeerConnection().close();
                 }
@@ -278,4 +276,3 @@ public class Session {
     }
 
 }
-*/

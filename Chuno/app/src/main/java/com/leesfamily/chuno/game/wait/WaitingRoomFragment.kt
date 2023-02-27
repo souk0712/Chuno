@@ -2,56 +2,48 @@ package com.leesfamily.chuno.game.wait
 
 import android.content.Context
 import android.os.Bundle
-import android.os.Handler
 import android.util.Log
 import android.view.*
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.gson.Gson
 import com.leesfamily.chuno.BuildConfig
 import com.leesfamily.chuno.MainViewModel
 import com.leesfamily.chuno.R
 import com.leesfamily.chuno.databinding.FragmentWaitingRoomListBinding
-import com.leesfamily.chuno.network.data.Chat
-import com.leesfamily.chuno.network.data.Player
+import com.leesfamily.chuno.game.GameViewModel
+import com.leesfamily.chuno.network.data.AllRoomList
 import com.leesfamily.chuno.network.data.Room
-import com.leesfamily.chuno.openvidu.utils.CustomHttpClient
-import com.leesfamily.chuno.openvidu.waiting.LocalParticipantWaiting
-import com.leesfamily.chuno.openvidu.waiting.RemoteParticipantWaiting
-import com.leesfamily.chuno.openvidu.waiting.SessionWaiting
-import com.leesfamily.chuno.openvidu.websocket.CustomWebSocketWaiting
+import com.leesfamily.chuno.network.data.WaitingInfo
+import com.leesfamily.chuno.network.websocket.MessageListener
+import com.leesfamily.chuno.network.websocket.WebSocketListener
+import com.leesfamily.chuno.network.websocket.WebSocketManager
 import com.leesfamily.chuno.room.roomlist.RoomItemViewModel
+import com.leesfamily.chuno.room.roomlist.RoomListFragment
 import com.leesfamily.chuno.util.custom.CreateRoomDialog1
 import com.leesfamily.chuno.util.custom.CreateRoomDialog2
 import com.leesfamily.chuno.util.custom.CreateRoomDialogInterface
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
-import org.webrtc.MediaStream
-import java.io.IOException
 
 /**
  * A fragment representing a list of Items.
  */
-class WaitingRoomFragment : Fragment() {
+class WaitingRoomFragment : Fragment(), MessageListener {
     private lateinit var binding: FragmentWaitingRoomListBinding
     private var columnCount = 3
-    private val viewModel: RoomItemViewModel by activityViewModels()
+    private val roomItemViewModel: RoomItemViewModel by activityViewModels()
+    private val gameViewModel: GameViewModel by activityViewModels()
+    private val mainViewModel: MainViewModel by activityViewModels()
     private lateinit var roomData: Room
     private lateinit var dialog1: CreateRoomDialog1
     private lateinit var dialog2: CreateRoomDialog2
-    private lateinit var httpClient: CustomHttpClient
     private lateinit var APPLICATION_SERVER_URL: String
-    private lateinit var session: SessionWaiting
-    private val mainViewModel: MainViewModel by activityViewModels()
+
+    //    private lateinit var httpClient: CustomHttpClient
+//    private lateinit var session: SessionWaiting
 
     private lateinit var callback: OnBackPressedCallback
 
@@ -60,8 +52,9 @@ class WaitingRoomFragment : Fragment() {
         arguments?.let {
             columnCount = it.getInt(ARG_COLUMN_COUNT)
         }
-
         APPLICATION_SERVER_URL = BuildConfig.SERVER_URL
+        roomItemViewModel.initWebSocketManager(this)
+        roomItemViewModel.connectWebSocket()
     }
 
     override fun onCreateView(
@@ -69,17 +62,18 @@ class WaitingRoomFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         binding = FragmentWaitingRoomListBinding.inflate(inflater, container, false)
-        viewModel.roomData.value?.let {
+        roomItemViewModel.roomData.value?.let {
             roomData = it
+            gameViewModel.updateRoomData(it)
         }
 
-        viewModel.roomData.observe(viewLifecycleOwner) {
+        roomItemViewModel.roomData.observe(viewLifecycleOwner) {
             binding.toolbarInclude.toolbarTitle.text = it.title
         }
 
         binding.toolbarInclude.toolbar.inflateMenu(R.menu.menu_toolbar)
 
-        viewModel.players.observe(viewLifecycleOwner) {
+        roomItemViewModel.players.observe(viewLifecycleOwner) {
             binding.userList.apply {
                 layoutManager =
                     GridLayoutManager(context, columnCount)
@@ -87,7 +81,7 @@ class WaitingRoomFragment : Fragment() {
             }
         }
 
-        viewModel.chatList.observe(viewLifecycleOwner) {
+        roomItemViewModel.chatList.observe(viewLifecycleOwner) {
             binding.chatList.apply {
                 layoutManager =
                     LinearLayoutManager(context)
@@ -103,12 +97,13 @@ class WaitingRoomFragment : Fragment() {
             findNavController().navigate(R.id.action_waitingRoomFragment_to_game_view)
         }
 
-        httpClient = CustomHttpClient(APPLICATION_SERVER_URL)
-        val sessionId = roomData.id.toString()
-        getToken(sessionId)
-        Log.d(TAG, "onCreateView: sessionId $sessionId")
+//        httpClient = CustomHttpClient(APPLICATION_SERVER_URL)
+//        val sessionId = roomData.id.toString()
+//        getToken(sessionId)
+//        Log.d(TAG, "onCreateView: sessionId $sessionId")
         return binding.root
     }
+/*
 
     fun addChat(chat: Chat) {
         viewModel.addChat(chat)
@@ -204,7 +199,7 @@ class WaitingRoomFragment : Fragment() {
         localParticipant.startCamera()
 
         activity?.runOnUiThread {
-            viewModel.addPlayer(Player(me.nickname!!, me.level.toString(), false))
+//            viewModel.addPlayer(Player(me.nickname!!, me.level.toString(), false))
             binding.userList.adapter?.notifyItemChanged(0)
             Log.d(
                 TAG,
@@ -220,12 +215,12 @@ class WaitingRoomFragment : Fragment() {
     fun createRemoteParticipantVideo(remoteParticipant: RemoteParticipantWaiting) {
         val mainHandler: Handler = Handler(requireContext().mainLooper)
         val myRunnable = Runnable {
-            viewModel.addPlayer(
-                Player(
-                    remoteParticipant.participantName,
-                    remoteParticipant.participantLevel, false
-                )
-            )
+//            viewModel.addPlayer(
+//                Player(
+//                    remoteParticipant.participantName,
+//                    remoteParticipant.participantLevel, false
+//                )
+//            )
             binding.userList.adapter?.notifyDataSetChanged()
             Log.d(TAG, "createRemoteParticipantVideo: players : ${viewModel.players} ")
         }
@@ -255,6 +250,7 @@ class WaitingRoomFragment : Fragment() {
         }
         Handler(requireContext().mainLooper).post(myRunnable)
     }
+*/
 
     override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
         super.onCreateOptionsMenu(menu, inflater)
@@ -271,7 +267,6 @@ class WaitingRoomFragment : Fragment() {
                     }
                 dialog1 = CreateRoomDialog1(requireContext(), object : CreateRoomDialogInterface {
                     override fun onNextButtonClicked(view: View) {
-                        val childFragmentManager = childFragmentManager
                         childFragmentManager.findFragmentByTag("createRoomDialog1")?.let {
                             childFragmentManager.beginTransaction().remove(it)
                         }
@@ -288,15 +283,13 @@ class WaitingRoomFragment : Fragment() {
                     title = roomData.title
                     password = roomData.password
                     reservationDate = roomData.dateTime.dateToString()
-                    reservationHour = roomData.dateTime.hour.toString()
-                    reservationMin = roomData.dateTime.minute.toString()
+                    reservationHour = roomData.dateTime.hour
+                    reservationMin = roomData.dateTime.minute
                     curValue = roomData.maxPlayers
                     isReadOnly = true
                     show(childFragmentManager, "infoRoomDialog1")
                 }
-                viewModel.roomData.observe(viewLifecycleOwner) {
-
-
+                roomItemViewModel.roomData.observe(viewLifecycleOwner) {
                 }
 
                 true
@@ -308,7 +301,7 @@ class WaitingRoomFragment : Fragment() {
                 true
             }
             R.id.out -> {
-                leaveSession()
+//                leaveSession()
                 findNavController().navigate(R.id.homeFragment)
                 true
             }
@@ -318,8 +311,8 @@ class WaitingRoomFragment : Fragment() {
     }
 
     override fun onDestroy() {
-        viewModel.clearPlayer()
-        leaveSession()
+        roomItemViewModel.clearPlayer()
+//        leaveSession()
         Log.d(TAG, "onDestroy: ")
         super.onDestroy()
     }
@@ -329,9 +322,9 @@ class WaitingRoomFragment : Fragment() {
         Log.d(TAG, "onAttach: ")
         callback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                leaveSession()
+//                leaveSession()
                 Log.d(TAG, "handleOnBackPressed: ")
-                viewModel.clearPlayer()
+                roomItemViewModel.clearPlayer()
                 findNavController().navigate(R.id.homeFragment)
             }
         }
@@ -355,5 +348,39 @@ class WaitingRoomFragment : Fragment() {
                     putInt(ARG_COLUMN_COUNT, columnCount)
                 }
             }
+    }
+
+    override fun onConnectSuccess() {
+        gameViewModel.enterRoom(
+            roomData.id.toString()
+        )
+    }
+
+    override fun onConnectFailed() {
+
+    }
+
+    override fun onClose() {
+
+    }
+
+    override fun onMessage(text: String?) {
+        Log.d(TAG, "onMessage: text $text")
+        val json = Gson().fromJson(text, WaitingInfo::class.java)
+        when (json.type) {
+            "me" -> {
+                Log.d(TAG, "onMessage: me ")
+            }
+            "leave" -> {
+                Log.d(TAG, "onMessage: leave")
+            }
+            "chat" -> {
+                Log.d(TAG, "onMessage: chat")
+            }
+            "already"->{
+                Log.d(TAG, "onMessage: already")
+                Log.d(TAG, "onMessage: ${json.players}, ${json.present}")
+            }
+        }
     }
 }

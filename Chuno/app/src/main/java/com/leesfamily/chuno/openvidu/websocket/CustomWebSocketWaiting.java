@@ -1,3 +1,4 @@
+/*
 package com.leesfamily.chuno.openvidu.websocket;
 
 import android.os.AsyncTask;
@@ -301,7 +302,8 @@ public class CustomWebSocketWaiting extends AsyncTask<WaitingRoomFragment, Void,
         this.IDS_ONICECANDIDATE.add(this.sendJson(JsonConstants.ONICECANDIDATE_METHOD, onIceCandidateParams));
     }
 
-    /**
+    */
+/**
      * OpenVidu에서 받은 이벤트 메시지를 처리하는 방법 구현
      * ice candidates가 언제 도착하는지, 새 사용자가 세션에 참여했는지, 사용자가 세션에 비디오를 게시했는지
      * 또는 일부 참가자가 세션을 나갔는지 알기위해 필수적
@@ -318,7 +320,8 @@ public class CustomWebSocketWaiting extends AsyncTask<WaitingRoomFragment, Void,
      * RPC 방법으로 OpenVidu로 전송하고, receiveVideoFrom이 PeerConnection의 원격 SDP 설명으로 수신된 응답을 설정합니다.
      * participantLeftEvent: 일부 사용자가 세션을 나갔을 때 전달됩니다.
      * 적절한 PeerConnection을 폐기하고 뷰를 업데이트하기만 하면 됩니다.
-     */
+     *//*
+
 
 
     private void handleServerEvent(JSONObject json) throws JSONException {
@@ -748,3 +751,4 @@ public class CustomWebSocketWaiting extends AsyncTask<WaitingRoomFragment, Void,
     }
 
 }
+*/

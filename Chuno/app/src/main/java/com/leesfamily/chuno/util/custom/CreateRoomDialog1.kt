@@ -11,9 +11,14 @@ import android.view.ViewGroup
 import android.view.animation.AnimationUtils
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.activityViewModels
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.ViewModel
 import com.leesfamily.chuno.R
 import com.leesfamily.chuno.databinding.CreateRoomDialog1Binding
+import com.leesfamily.chuno.room.roomlist.RoomListFragment
 import com.leesfamily.chuno.util.custom.DialogSizeHelper.dialogFragmentResize
 import java.text.DateFormat
 import java.text.SimpleDateFormat
@@ -25,8 +30,18 @@ class CreateRoomDialog1(
     createRoomDialogInterface: CreateRoomDialogInterface
 ) : DialogFragment(), View.OnClickListener, MyCustomDialogInterface {
     private lateinit var binding: CreateRoomDialog1Binding
+    private val createRoomViewModel: CreateRoomViewModel by activityViewModels()
 
     private var createRoomDialogInterface: CreateRoomDialogInterface? = null
+
+    var mContext: Context? = null
+
+    // 최대 인원
+    var step = 2
+    var defValue = 6
+    var minValue = 4
+    var maxValue = 10
+    var curValue = defValue
 
     var isReadOnly: Boolean = false
 
@@ -43,17 +58,12 @@ class CreateRoomDialog1(
     var dayValue: Int? = null
 
     // 예약시간
-    var reservationHour: String? = null
-    var reservationMin: String? = null
+    var reservationHour: Int? = null
+    var reservationMin: Int? = null
 
-    var mContext: Context? = null
+    var isPublic: Boolean = true
 
-    // 최대 인원
-    var step = 2
-    var defValue = 6
-    var minValue = 4
-    var maxValue = 10
-    var curValue = defValue
+    var isToday: Boolean = true
 
     // 인터페이스 연결
     init {
@@ -78,6 +88,8 @@ class CreateRoomDialog1(
         binding = CreateRoomDialog1Binding.inflate(inflater, container, false)
         dialog?.window!!.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         binding.nextButton.setOnClickListener(this)
+        binding.publicButton.setOnClickListener(this)
+        binding.privateButton.setOnClickListener(this)
         binding.closeButton.setOnClickListener(this)
         binding.calendarView.setOnClickListener(this)
 
@@ -102,6 +114,7 @@ class CreateRoomDialog1(
         isCancelable = false
         return binding.root
     }
+
 
     private fun checkRange(numberView: TextView, curValue: Int, minValue: Int, maxValue: Int) {
 
@@ -151,11 +164,28 @@ class CreateRoomDialog1(
         }, 1000)
     }
 
+    private fun saveViewModel() {
+        createRoomViewModel.setCurValue(curValue)
+        reservationHour?.let { createRoomViewModel.setReservationHour(it) }
+        reservationMin?.let { createRoomViewModel.setReservationMin(it) }
+        password?.let { createRoomViewModel.setPw(it) }
+        monthValue?.let { createRoomViewModel.setMonthValue(it) }
+        dayValue?.let { createRoomViewModel.setDayValue(it) }
+        createRoomViewModel.setIsPublic(isPublic)
+        title?.let { createRoomViewModel.setTitle(it) }
+        yearValue?.let { createRoomViewModel.setYearValue(it) }
+        isReadOnly.let { createRoomViewModel.setReadOnly(it) }
+        isPublic.let { createRoomViewModel.setIsPublic(it) }
+        isToday.let { createRoomViewModel.setIsToday(it) }
+    }
+
     override fun onClick(view: View?) {
         when (view) {
             binding.nextButton -> {
                 if (checkEmptyInput(view)) {
                     createRoomDialogInterface?.onNextButtonClicked(binding.root)
+                    if (!isReadOnly)
+                        saveViewModel()
                     dismiss()
                 }
             }
@@ -169,26 +199,50 @@ class CreateRoomDialog1(
                         override fun onOkButtonClicked(
                             date: Calendar?,
                             hourValue: Int?,
-                            minuteValue: Int?
+                            minuteValue: Int?,
+                            isToday: Boolean
                         ) {
                             val df: DateFormat = SimpleDateFormat("yyyy-MM-dd")
-
+                            this@CreateRoomDialog1.isToday = isToday
                             reservationDate = date?.time?.let { df.format(it) }
 
                             yearValue = date?.get(Calendar.YEAR)
                             monthValue = date?.get(Calendar.DAY_OF_MONTH)
                             dayValue = date?.get(Calendar.DATE)
 
-                            reservationHour = "$hourValue"
-                            reservationMin = "$minuteValue"
+                            reservationHour = hourValue
+                            reservationMin = minuteValue
 
                             binding.reservationDate.text = reservationDate
-                            binding.reservationHour.text = reservationHour
-                            binding.reservationMin.text = reservationMin
+                            binding.reservationHour.text = reservationHour.toString()
+                            binding.reservationMin.text = reservationMin.toString()
                         }
 
                     }).show(childFragmentManager, "datePicker")
                 }
+            }
+            binding.publicButton -> {
+                if (!isPublic) {
+                    binding.publicButton.background =
+                        ContextCompat.getDrawable(mContext!!, R.drawable.btn_pressed_left)
+                    binding.privateButton.background =
+                        ContextCompat.getDrawable(mContext!!, R.drawable.btn_right_default_selector)
+                    isPublic = !isPublic
+                }
+                binding.passwordEdit.visibility = View.GONE
+                binding.passwordText.visibility = View.GONE
+            }
+
+            binding.privateButton -> {
+                if (isPublic) {
+                    binding.publicButton.background =
+                        ContextCompat.getDrawable(mContext!!, R.drawable.btn_left_default_selector)
+                    binding.privateButton.background =
+                        ContextCompat.getDrawable(mContext!!, R.drawable.btn_pressed_right)
+                    isPublic = !isPublic
+                }
+                binding.passwordEdit.visibility = View.VISIBLE
+                binding.passwordText.visibility = View.VISIBLE
             }
         }
     }
@@ -200,8 +254,8 @@ class CreateRoomDialog1(
             binding.roomTitleEdit.isEnabled = !isReadOnly
             binding.passwordEdit.isEnabled = !isReadOnly
             binding.reservationDate.text = reservationDate
-            binding.reservationHour.text = reservationHour
-            binding.reservationMin.text = reservationMin
+            binding.reservationHour.text = reservationHour.toString()
+            binding.reservationMin.text = reservationMin.toString()
             binding.reservationDate.text = reservationDate
             binding.passwordEdit.visibility = View.GONE
             binding.passwordText.visibility = View.GONE
@@ -220,11 +274,13 @@ class CreateRoomDialog1(
                 } else {
                     this.title = binding.roomTitleEdit.text.toString()
                 }
-                if (binding.passwordEdit.text.toString().isEmpty()) {
-                    showCustomDialog(1)
-                    return false
-                } else {
-                    this.password = binding.passwordEdit.text.toString()
+                if (!isPublic) {
+                    if (binding.passwordEdit.text.toString().isEmpty()) {
+                        showCustomDialog(1)
+                        return false
+                    } else {
+                        this.password = binding.passwordEdit.text.toString()
+                    }
                 }
                 if (binding.reservationDate.text.toString().isEmpty() ||
                     binding.reservationHour.text.toString().isEmpty() ||

@@ -40,8 +40,8 @@
         tools:layout="@layout/fragment_my_page" />
     <fragment
         android:id="@+id/rank"
-        android:name="com.leesfamily.chuno.room.rank.RankFragment"
+        android:name="com.leesfamily.chuno.room.rank.RankItemFragment"
         android:label="RankFragment"
-        tools:layout="@layout/fragment_rank" />
+        tools:layout="@layout/fragment_rank_item_list" />
 
 </navigation>

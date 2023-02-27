@@ -11,6 +11,17 @@ data class DataForm(
     val code: Int
 )
 
+data class IntForm(
+    val result: Int,
+    val code: Int
+)
+
+data class LongForm(
+    val result: Long,
+    val code: Int
+)
+
+
 data class ItemForm(
     val result: List<Item>,
     val code: Int
@@ -23,6 +34,11 @@ data class NickForm(
 
 data class RoomForm(
     val result: List<Room>,
+    val code: Int
+)
+
+data class RoomDataForm(
+    val result: Room,
     val code: Int
 )
 

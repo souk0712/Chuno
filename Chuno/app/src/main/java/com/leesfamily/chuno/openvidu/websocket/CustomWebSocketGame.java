@@ -1,11 +1,16 @@
-/*
 package com.leesfamily.chuno.openvidu.websocket;
 
+import android.os.AsyncTask;
 import android.os.Handler;
 import android.util.Log;
 import android.util.Pair;
 import android.widget.Toast;
+import com.leesfamily.chuno.game.game.GameViewFragment;
 import com.leesfamily.chuno.openvidu.constants.JsonConstants;
+import com.leesfamily.chuno.openvidu.game.LocalParticipantGame;
+import com.leesfamily.chuno.openvidu.game.ParticipantGame;
+import com.leesfamily.chuno.openvidu.game.RemoteParticipantGame;
+import com.leesfamily.chuno.openvidu.game.SessionGame;
 import com.leesfamily.chuno.openvidu.observers.CustomSdpObserver;
 import com.neovisionaries.ws.client.ThreadType;
 import com.neovisionaries.ws.client.WebSocket;
@@ -22,7 +27,6 @@ import org.webrtc.MediaConstraints;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnection.IceServer;
 import org.webrtc.SessionDescription;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -41,13 +45,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
 
-public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> implements WebSocketListener {
+public class CustomWebSocketGame extends AsyncTask<GameViewFragment, Void, Void> implements WebSocketListener {
 
     private final String TAG = "CustomWebSocketListener";
     private final int PING_MESSAGE_INTERVAL = 5;
@@ -75,13 +78,13 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
     private Map<Integer, Pair<String, String>> IDS_PREPARERECEIVEVIDEO = new ConcurrentHashMap<>();
     private Map<Integer, String> IDS_RECEIVEVIDEO = new ConcurrentHashMap<>();
     private Set<Integer> IDS_ONICECANDIDATE = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private Session session;
+    private SessionGame session;
     private String mediaServer;
     private GameViewFragment fragment;
     private WebSocket websocket;
     private boolean websocketCancelled = false;
 
-    public CustomWebSocket(Session session, GameViewFragment fragment) {
+    public CustomWebSocketGame(SessionGame session, GameViewFragment fragment) {
         this.session = session;
         this.fragment = fragment;
     }
@@ -110,9 +113,9 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
 
         } else if (rpcId == this.ID_JOINROOM.get()) {
             // Response to joinRoom
-            fragment.viewToConnectedState();
+//            fragment.viewToConnectedState();
 
-            final LocalParticipant localParticipant = this.session.getLocalParticipant();
+            final LocalParticipantGame localParticipant = this.session.getLocalParticipant();
             final String localConnectionId = result.getString(JsonConstants.ID);
             localParticipant.setConnectionId(localConnectionId);
 
@@ -174,13 +177,13 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
             }
         } else if (rpcId == this.ID_PUBLISHVIDEO.get()) {
             // Response to publishVideo
-            LocalParticipant localParticipant = this.session.getLocalParticipant();
+            LocalParticipantGame localParticipant = this.session.getLocalParticipant();
             SessionDescription remoteSdpAnswer = new SessionDescription(SessionDescription.Type.ANSWER, result.getString("sdpAnswer"));
             localParticipant.getPeerConnection().setRemoteDescription(new CustomSdpObserver("publishVideo_setRemoteDescription"), remoteSdpAnswer);
         } else if (this.IDS_PREPARERECEIVEVIDEO.containsKey(rpcId)) {
             // Response to prepareReceiveVideoFrom
             Pair<String, String> participantAndStream = IDS_PREPARERECEIVEVIDEO.remove(rpcId);
-            RemoteParticipant remoteParticipant = session.getRemoteParticipant(participantAndStream.first);
+            RemoteParticipantGame remoteParticipant = session.getRemoteParticipant(participantAndStream.first);
             String streamId = participantAndStream.second;
             SessionDescription remoteSdpOffer = new SessionDescription(SessionDescription.Type.OFFER, result.getString("sdpOffer"));
             remoteParticipant.getPeerConnection().setRemoteDescription(new CustomSdpObserver("prepareReceiveVideoFrom_setRemoteDescription") {
@@ -253,7 +256,7 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
         this.ID_PUBLISHVIDEO.set(this.sendJson(JsonConstants.PUBLISHVIDEO_METHOD, publishVideoParams));
     }
 
-    public void prepareReceiveVideoFrom(RemoteParticipant remoteParticipant, String streamId) {
+    public void prepareReceiveVideoFrom(RemoteParticipantGame remoteParticipant, String streamId) {
         Map<String, String> prepareReceiveVideoFromParams = new HashMap<>();
         prepareReceiveVideoFromParams.put("sender", streamId);
         prepareReceiveVideoFromParams.put("reconnect", "false");
@@ -262,7 +265,7 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
 
     // receiveVideo방법 으로 원격 비디오 구독하기
     // 아래와 같이 필수 매개변수와 함께 WebSocket을 통해 JSON-RPC를 보내야 합니다.
-    public void receiveVideoFrom(SessionDescription sessionDescription, RemoteParticipant remoteParticipant, String streamId) {
+    public void receiveVideoFrom(SessionDescription sessionDescription, RemoteParticipantGame remoteParticipant, String streamId) {
         Map<String, String> receiveVideoFromParams = new HashMap<>();
         receiveVideoFromParams.put("sender", streamId);
         if ("kurento".equals(this.mediaServer)) {
@@ -284,8 +287,7 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
         this.IDS_ONICECANDIDATE.add(this.sendJson(JsonConstants.ONICECANDIDATE_METHOD, onIceCandidateParams));
     }
 
-    */
-/**
+/*
      * OpenVidu에서 받은 이벤트 메시지를 처리하는 방법 구현
      * ice candidates가 언제 도착하는지, 새 사용자가 세션에 참여했는지, 사용자가 세션에 비디오를 게시했는지
      * 또는 일부 참가자가 세션을 나갔는지 알기위해 필수적
@@ -302,7 +304,7 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
      *              RPC 방법으로 OpenVidu로 전송하고, receiveVideoFrom이 PeerConnection의 원격 SDP 설명으로 수신된 응답을 설정합니다.
      * participantLeftEvent: 일부 사용자가 세션을 나갔을 때 전달됩니다.
      *              적절한 PeerConnection을 폐기하고 뷰를 업데이트하기만 하면 됩니다.
-     *//*
+*/
 
 
 
@@ -368,7 +370,7 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
             JSONException {
         for (int i = 0; i < result.getJSONArray(JsonConstants.VALUE).length(); i++) {
             JSONObject participantJson = result.getJSONArray(JsonConstants.VALUE).getJSONObject(i);
-            RemoteParticipant remoteParticipant = this.newRemoteParticipantAux(participantJson);
+            RemoteParticipantGame remoteParticipant = this.newRemoteParticipantAux(participantJson);
             try {
                 JSONArray streams = participantJson.getJSONArray("streams");
                 for (int j = 0; j < streams.length(); j++) {
@@ -388,7 +390,7 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
         IceCandidate iceCandidate = new IceCandidate(params.getString("sdpMid"), params.getInt("sdpMLineIndex"), params.getString("candidate"));
         final String connectionId = params.getString("senderConnectionId");
         boolean isRemote = !session.getLocalParticipant().getConnectionId().equals(connectionId);
-        final Participant participant = isRemote ? session.getRemoteParticipant(connectionId) : session.getLocalParticipant();
+        final ParticipantGame participant = isRemote ? session.getRemoteParticipant(connectionId) : session.getLocalParticipant();
         final PeerConnection pc = participant.getPeerConnection();
 
         switch (pc.signalingState()) {
@@ -414,20 +416,20 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
     private void participantPublishedEvent(JSONObject params) throws
             JSONException {
         String remoteParticipantId = params.getString(JsonConstants.ID);
-        final RemoteParticipant remoteParticipant = this.session.getRemoteParticipant(remoteParticipantId);
+        final RemoteParticipantGame remoteParticipant = this.session.getRemoteParticipant(remoteParticipantId);
         final String streamId = params.getJSONArray("streams").getJSONObject(0).getString("id");
         this.subscribe(remoteParticipant, streamId);
     }
 
     private void participantLeftEvent(JSONObject params) throws JSONException {
-        final RemoteParticipant remoteParticipant = this.session.removeRemoteParticipant(params.getString("connectionId"));
+        final RemoteParticipantGame remoteParticipant = this.session.removeRemoteParticipant(params.getString("connectionId"));
         remoteParticipant.dispose();
         Handler mainHandler = new Handler(fragment.requireContext().getMainLooper());
         Runnable myRunnable = () -> session.removeView(remoteParticipant.getView());
         mainHandler.post(myRunnable);
     }
 
-    private RemoteParticipant newRemoteParticipantAux(JSONObject participantJson) throws JSONException {
+    private RemoteParticipantGame newRemoteParticipantAux(JSONObject participantJson) throws JSONException {
         final String connectionId = participantJson.getString(JsonConstants.ID);
         String participantName = "";
         if (participantJson.getString(JsonConstants.METADATA) != null) {
@@ -442,13 +444,13 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
                 participantName = jsonStringified;
             }
         }
-        final RemoteParticipant remoteParticipant = new RemoteParticipant(connectionId, participantName, this.session);
+        final RemoteParticipantGame remoteParticipant = new RemoteParticipantGame(connectionId, participantName, this.session);
         fragment.createRemoteParticipantVideo(remoteParticipant);
         this.session.createRemotePeerConnection(remoteParticipant.getConnectionId());
         return remoteParticipant;
     }
 
-    private void subscribe(RemoteParticipant remoteParticipant, String streamId) {
+    private void subscribe(RemoteParticipantGame remoteParticipant, String streamId) {
         if ("kurento".equals(this.mediaServer)) {
             this.subscriptionInitiatedFromClient(remoteParticipant, streamId);
         } else {
@@ -456,7 +458,7 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
         }
     }
 
-    private void subscriptionInitiatedFromClient(RemoteParticipant remoteParticipant, String streamId) {
+    private void subscriptionInitiatedFromClient(RemoteParticipantGame remoteParticipant, String streamId) {
         MediaConstraints sdpConstraints = new MediaConstraints();
         sdpConstraints.mandatory.add(new MediaConstraints.KeyValuePair("offerToReceiveAudio", "true"));
         sdpConstraints.mandatory.add(new MediaConstraints.KeyValuePair("offerToReceiveVideo", "true"));
@@ -476,7 +478,7 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
         }, sdpConstraints);
     }
 
-    private void subscriptionInitiatedFromServer(RemoteParticipant remoteParticipant, String streamId) {
+    private void subscriptionInitiatedFromServer(RemoteParticipantGame remoteParticipant, String streamId) {
         MediaConstraints sdpConstraints = new MediaConstraints();
         sdpConstraints.mandatory.add(new MediaConstraints.KeyValuePair("offerToReceiveAudio", "true"));
         sdpConstraints.mandatory.add(new MediaConstraints.KeyValuePair("offerToReceiveVideo", "true"));
@@ -680,7 +682,7 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
     // 세션과 상호 작용할 수 있음
     // 비동기 작업으로 백그라운드에서 수행
     @Override
-    protected Void doInBackground(RankFragment... rankFragments) {
+    protected Void doInBackground(GameViewFragment... rankFragments) {
         try {
             WebSocketFactory factory = new WebSocketFactory();
 
@@ -716,4 +718,3 @@ public class CustomWebSocket extends AsyncTask<RankFragment, Void, Void> impleme
     }
 
 }
-*/

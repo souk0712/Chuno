@@ -17,12 +17,11 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getSystemService
 import androidx.fragment.app.Fragment
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationListener
-import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.*
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
 import com.leesfamily.chuno.R
+import com.leesfamily.chuno.game.game.GameViewFragment
 import com.leesfamily.chuno.util.PermissionHelper
 import com.leesfamily.chuno.util.custom.CreateRoomDialog2
 
@@ -33,28 +32,71 @@ object MapsUtil : OnMapReadyCallback {
 
     lateinit var mMap: GoogleMap
     const val DEFAULT_ZOOM = 15
+    private const val UPDATE_INTERVAL = 1000L // 1초
+    private const val MIN_UPDATE_INTERVAL = 500L // 0.5초
+    private const val MIN_UPDATE_DISTANCE = 10f // 10m
     val defaultLocation = LatLng(37.56, 126.97)
     private lateinit var mFusedLocationClient: FusedLocationProviderClient
     private lateinit var locationRequest: LocationRequest
     private lateinit var currentPosition: LatLng
+    private lateinit var lastKnownLocation: LatLng
 
     // 원
     private var circle: Circle? = null
-    var isAddCircle = false
     var circleFillColor: Int? = null
     var circleStrokeColor: Int? = null
     var circleDefValue: Double = 500.0
 
-    fun initMapsUtil(fusedLocationProviderClient: FusedLocationProviderClient,
-                     locationRequest: LocationRequest) {
+    //위치정보 요청시 호출
+    var locationCallback: LocationCallback = object : LocationCallback() {
+        override fun onLocationResult(locationResult: LocationResult) {
+            super.onLocationResult(locationResult)
+            val locationList = locationResult.locations
+            if (locationList.size > 0) {
+                val location = locationList[locationList.size - 1]
+
+                currentPosition = LatLng(location.latitude, location.longitude)
+
+                Log.d(
+                    TAG,
+                    "onLocationResult: 위도: ${location.latitude}, 경도: ${location.longitude}"
+                )
+
+                //현재 위치에 마커 생성하고 이동
+                setCurrentLocation(location)
+            }
+        }
+    }
+
+    fun setCurrentLocation(location: Location) {
+        val currentLatLng = LatLng(location.latitude, location.longitude)
+        val cameraUpdate = CameraUpdateFactory.newLatLng(currentLatLng)
+        mMap!!.moveCamera(cameraUpdate)
+    }
+
+    fun initMapsUtil(
+        fusedLocationProviderClient: FusedLocationProviderClient,
+    ) {
         this.mFusedLocationClient = fusedLocationProviderClient
-        this.locationRequest = locationRequest
     }
 
     fun getOnMapReadyCallback(): OnMapReadyCallback {
         return this
     }
 
+    fun setLocationRequest() {
+        locationRequest = LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            UPDATE_INTERVAL
+        )
+            .apply {
+                setMinUpdateDistanceMeters(MIN_UPDATE_DISTANCE)
+                setMinUpdateIntervalMillis(MIN_UPDATE_INTERVAL)
+            }.build()
+
+    }
+
+    @SuppressLint("MissingPermission")
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
         setDefaultLocation()
@@ -65,48 +107,46 @@ object MapsUtil : OnMapReadyCallback {
             uiSettings.setAllGesturesEnabled(false)
 
             mapType = GoogleMap.MAP_TYPE_NORMAL
-//            moveCamera(
-//                CameraUpdateFactory.newLatLngZoom(
-//                    if (lastKnownLocation == null) {
-//                        defaultLocation
-//                    } else {
-//                        LatLng(
-//                            lastKnownLocation!!.latitude,
-//                            lastKnownLocation!!.longitude
-//                        )
-//                    },
-//                    DEFAULT_ZOOM.toFloat()
-//                )
-//            )
-
-        }
-        startLocationUpdates()
-        if (isAddCircle)
-            onAddCircle(circleDefValue, circleFillColor!!, circleStrokeColor!!)
-        if (lastKnownLocation != null) {
-            mMap?.isMyLocationEnabled = true
-            mMap?.moveCamera(
+            moveCamera(
                 CameraUpdateFactory.newLatLngZoom(
                     LatLng(
                         lastKnownLocation!!.latitude,
                         lastKnownLocation!!.longitude
-                    ), DEFAULT_ZOOM.toFloat()
+                    ),
+                    DEFAULT_ZOOM.toFloat()
                 )
             )
+
         }
+        if (PermissionHelper.hasLocationPermission())
+            startLocationUpdates()
+
+        onAddCircle(circleDefValue, circleFillColor!!, circleStrokeColor!!)
+//        if (currentPosition != null) {
+        mMap.isMyLocationEnabled = true
+        mMap.moveCamera(
+            CameraUpdateFactory.newLatLngZoom(
+                LatLng(
+                    currentPosition!!.latitude,
+                    currentPosition!!.longitude
+                ), DEFAULT_ZOOM.toFloat()
+            )
+        )
+//        }
     }
+
     private fun startLocationUpdates() {
         // 위치서비스 활성화 여부 check
         if (!checkLocationServicesStatus()) {
             showDialogForLocationServiceSetting()
         } else {
 //            if (checkPermission()) {
-                mFusedLocationClient.requestLocationUpdates(
-                    locationRequest,
-                    locationCallback,
-                    null
-                )
-                if (mMap != null) mMap!!.isMyLocationEnabled = true
+            mFusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                locationCallback,
+                null
+            )
+            if (mMap != null) mMap!!.isMyLocationEnabled = true
 //            }
         }
     }
@@ -157,6 +197,47 @@ object MapsUtil : OnMapReadyCallback {
             zoomLevel = (DEFAULT_ZOOM - Math.log(scale) / Math.log(2.0)).toInt().toFloat()
         }
         return zoomLevel + .4f
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun getDeviceLocation(context: Context) {
+        */
+/*
+         * Get the best and most recent location of the device, which may be null in rare
+         * cases when a location is not available.
+         *//*
+
+        try {
+            if (PermissionHelper.hasLocationPermission(context)) {
+                val locationResult = fusedLocationProviderClient.lastLocation
+                locationResult.addOnCompleteListener(this) { task ->
+                    if (task.isSuccessful) {
+                        // Set the map's camera position to the current location of the device.
+                        lastKnownLocation = task.result
+                        if (lastKnownLocation != null) {
+                            map?.moveCamera(
+                                CameraUpdateFactory.newLatLngZoom(
+                                    LatLng(
+                                        lastKnownLocation!!.latitude,
+                                        lastKnownLocation!!.longitude
+                                    ), DEFAULT_ZOOM.toFloat()
+                                )
+                            )
+                        }
+                    } else {
+                        Log.d(TAG, "Current location is null. Using defaults.")
+                        Log.e(TAG, "Exception: %s", task.exception)
+                        map?.moveCamera(
+                            CameraUpdateFactory
+                                .newLatLngZoom(defaultLocation, DEFAULT_ZOOM.toFloat())
+                        )
+                        map?.uiSettings?.isMyLocationButtonEnabled = false
+                    }
+                }
+            }
+        } catch (e: SecurityException) {
+            Log.e("Exception: %s", e.message, e)
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -225,4 +306,5 @@ object MapsUtil : OnMapReadyCallback {
             DialogInterface.OnClickListener { dialog, id -> dialog.cancel() })
         builder.create().show()
     }
-}*/
+}
+*/

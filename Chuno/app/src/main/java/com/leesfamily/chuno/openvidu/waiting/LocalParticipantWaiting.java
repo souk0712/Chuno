@@ -1,3 +1,4 @@
+/*
 package com.leesfamily.chuno.openvidu.waiting;
 
 import android.content.Context;
@@ -31,7 +32,9 @@ public class LocalParticipantWaiting extends ParticipantWaiting {
     private Collection<IceCandidate> localIceCandidates;
     private SessionDescription localSessionDescription;
 
-    public LocalParticipantWaiting(String participantName, String participantLevel,Boolean participantReady, SessionWaiting session, Context context/*, SurfaceViewRenderer localVideoView*/) {
+    public LocalParticipantWaiting(String participantName, String participantLevel,Boolean participantReady, SessionWaiting session, Context context*/
+/*, SurfaceViewRenderer localVideoView*//*
+) {
         super(participantName, participantLevel, participantReady, session);
 //        this.localVideoView = localVideoView;
         this.context = context;
@@ -121,3 +124,4 @@ public class LocalParticipantWaiting extends ParticipantWaiting {
         }
     }
 }
+*/

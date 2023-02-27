@@ -1,9 +1,13 @@
-/*
 package com.leesfamily.chuno.game.game
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Context.SENSOR_SERVICE
 import android.content.Intent
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Address
 import android.location.Geocoder
 import android.location.Location
@@ -22,6 +26,7 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.viewpager2.adapter.FragmentStateAdapter
@@ -30,17 +35,22 @@ import com.google.android.gms.location.*
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
-import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.Marker
-import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.*
+import com.leesfamily.chuno.BuildConfig
+import com.leesfamily.chuno.MainViewModel
 import com.leesfamily.chuno.R
 import com.leesfamily.chuno.databinding.FragmentGameViewBinding
-import com.leesfamily.chuno.openvidu.openvidu.kotlin.*
-import com.leesfamily.chuno.room.roomlist.RoomItemViewModel
+import com.leesfamily.chuno.game.GameViewModel
+import com.leesfamily.chuno.network.data.Room
+import com.leesfamily.chuno.network.data.User
+import com.leesfamily.chuno.openvidu.game.LocalParticipantGame
+import com.leesfamily.chuno.openvidu.game.RemoteParticipantGame
+import com.leesfamily.chuno.openvidu.game.SessionGame
+import com.leesfamily.chuno.openvidu.utils.CustomHttpClient
+import com.leesfamily.chuno.openvidu.websocket.CustomWebSocketGame
 import com.leesfamily.chuno.room.shop.ShopFragment
 import com.leesfamily.chuno.util.PermissionHelper
+import com.leesfamily.chuno.util.custom.CreateRoomDialog2
 import com.leesfamily.chuno.util.custom.MyCustomDialog
 import com.leesfamily.chuno.util.custom.MyCustomDialogInterface
 import okhttp3.Call
@@ -53,36 +63,44 @@ import org.webrtc.MediaStream
 import org.webrtc.SurfaceViewRenderer
 import java.io.IOException
 import java.util.*
+import kotlin.math.PI
+import kotlin.math.acos
+import kotlin.math.pow
+import kotlin.math.sqrt
 
-class GameViewFragment : Fragment(), OnMapReadyCallback {
+class GameViewFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     private lateinit var binding: FragmentGameViewBinding
 
-    private val viewModel: RoomItemViewModel by activityViewModels()
+    private val gameViewModel: GameViewModel by activityViewModels()
+    private val mainViewModel: MainViewModel by activityViewModels()
 
     private var mMap: GoogleMap? = null
+    private lateinit var user: User
     private val mFusedLocationClient: FusedLocationProviderClient by lazy {
         LocationServices.getFusedLocationProviderClient(requireActivity())
     }
+    private val defaultLocation = LatLng(36.106164, 128.417049)
     private val locationRequest: LocationRequest by lazy {
         LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, UPDATE_INTERVAL).apply {
             setMinUpdateDistanceMeters(MIN_UPDATE_DISTANCE)
             setMinUpdateIntervalMillis(MIN_UPDATE_INTERVAL)
         }.build()
     }
-    private lateinit var currentPosition: LatLng
+    private var currentPosition: LatLng? = null
     private val userMarkers: MutableList<Marker?> by lazy {
         mutableListOf()
     }
 
     private lateinit var callback: OnBackPressedCallback
-    private var APPLICATION_SERVER_URL: String? = null
-    private var session: Session? = null
+    private var APPLICATION_SERVER_URL = BuildConfig.SERVER_URL
+    private var session: SessionGame? = null
     private var httpClient: CustomHttpClient? = null
     private var needRequest = false
 
     private var isMenu = false
     private var isMyVideo = false
 
+    private lateinit var roomData: Room
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
             permissions.entries.forEach {
@@ -101,6 +119,31 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
             }
         }
 
+
+    private val turnOnMyVideo = {
+        binding.peerContainer.visibility = View.VISIBLE
+        binding.footer.faceButton.setImageResource(R.drawable.close_button)
+        isMyVideo = !isMyVideo
+    }
+
+    private val turnOffMyVideo = {
+        binding.peerContainer.visibility = View.GONE
+        binding.footer.faceButton.setImageResource(R.drawable.face_button)
+        isMyVideo = !isMyVideo
+    }
+
+    private val closeMenu = {
+        binding.menu.root.visibility = View.GONE
+        binding.footer.menuButton.setImageResource(R.drawable.menu)
+        isMenu = !isMenu
+    }
+
+    private val openMenu = {
+        binding.menu.root.visibility = View.VISIBLE
+        binding.footer.menuButton.setImageResource(R.drawable.close_button)
+        isMenu = !isMenu
+    }
+
     //위치정보 요청시 호출
     var locationCallback: LocationCallback = object : LocationCallback() {
         override fun onLocationResult(locationResult: LocationResult) {
@@ -117,31 +160,45 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
 
                 Log.d(
                     TAG,
-                    "onLocationResult: 위도: ${location.latitude.toString()}, 경도: ${location.longitude}"
+                    "onLocationResult: 위도: ${location.latitude}, 경도: ${location.longitude}"
                 )
 
                 //현재 위치에 마커 생성하고 이동
                 setCurrentLocation(location)
                 addMarkerUser(marker)
+                onAddCircle(roomData.distance)
             }
         }
     }
 
-    fun addMarkerUser(marker: MutableList<LatLng>) {
-        marker.forEachIndexed { index, latLng ->
-            val userLatLng = LatLng(latLng.latitude, latLng.longitude)
+    // 원
+    private var circle: Circle? = null
 
-            val markerOptions = MarkerOptions()
-            markerOptions.position(userLatLng)
-            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
+    private val sensorManager by lazy {
+        activity?.getSystemService(SENSOR_SERVICE) as SensorManager
+    }
 
-            if (userMarkers.size <= index) {
-                userMarkers.add(index, mMap!!.addMarker(markerOptions))
-            } else {
-                userMarkers[index] = mMap!!.addMarker(markerOptions)
-            }
-
+    @SuppressLint("MissingPermission")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        Log.d(TAG, "onCreate: ")
+        if (savedInstanceState != null) {
+            currentPosition = savedInstanceState.getParcelable(KEY_LOCATION)!!
         }
+        if (PermissionHelper.hasLocationPermission(requireContext())) {
+            if (currentPosition != null) {
+                mFusedLocationClient.lastLocation.addOnSuccessListener { location: Location ->
+                    currentPosition = LatLng(location.latitude, location.longitude)
+                }
+            }
+        } else {
+            permissionLauncher.launch(
+                arrayOf(
+                    PermissionHelper.ACCESS_FINE_LOCATION, PermissionHelper.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+
     }
 
     override fun onCreateView(
@@ -151,13 +208,13 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
     ): View? {
         binding = FragmentGameViewBinding.inflate(inflater, container, false)
         activity?.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN)
+
+        gameViewModel.roomData.value?.let {
+            roomData = it
+        }
+
         val random = Random()
         val randomIndex = random.nextInt(100)
-        binding.participantName.text = binding.participantName.text.append(randomIndex.toString())
-        binding.startFinishCall.setOnClickListener {
-            Log.d(TAG, "onCreateView: startFinishCall clicked")
-            buttonPressed(it)
-        }
         val pagerAdapter = GameViewFragmentAdapter(this)
         val pager = binding.pager.apply {
             adapter = pagerAdapter
@@ -181,6 +238,15 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
             })
         }
 
+
+        gameViewModel.roomData.observe(viewLifecycleOwner) {
+            roomData = it
+        }
+
+        mainViewModel.user.observe(viewLifecycleOwner) {
+            user = it
+        }
+
         binding.arrowLeft.setOnClickListener {
             val cur = pager.currentItem
             pager.currentItem = cur - 1
@@ -192,9 +258,11 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
         }
 
         binding.map.apply {
-            val mapFragment = childFragmentManager
-                .findFragmentById(R.id.map) as SupportMapFragment
-            mapFragment.getMapAsync(this@GameViewFragment)
+            onCreate(savedInstanceState)
+            getMapAsync(this@GameViewFragment)
+//            val mapFragment = childFragmentManager
+//                .findFragmentById(R.id.map) as SupportMapFragment
+//            mapFragment.getMapAsync(this@GameViewFragment)
         }
 
         binding.footer.menuButton.apply {
@@ -223,53 +291,97 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
             }
 
         }
-
+        initViews()
+        httpClient = CustomHttpClient(APPLICATION_SERVER_URL)
+        val sessionId = roomData.id.toString()
+        getToken(sessionId)
         return binding.root
     }
 
-    private val turnOnMyVideo = {
-        binding.peerContainer.visibility = View.VISIBLE
-        binding.footer.faceButton.setImageResource(R.drawable.close_button)
-        isMyVideo = !isMyVideo
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        (activity as AppCompatActivity).supportActionBar?.hide()
     }
 
-    private val turnOffMyVideo = {
-        binding.peerContainer.visibility = View.GONE
-        binding.footer.faceButton.setImageResource(R.drawable.face_button)
-        isMyVideo = !isMyVideo
+    override fun onResume() {
+        super.onResume()
+        binding.map.onResume()
+        sensorManager.registerListener(
+            this,
+            sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY),
+            SensorManager.SENSOR_DELAY_FASTEST
+        )
     }
 
-    private val closeMenu = {
-        binding.menu.root.visibility = View.GONE
-        binding.footer.menuButton.setImageResource(R.drawable.menu)
-        isMenu = !isMenu
+    override fun onPause() {
+        super.onPause()
+        sensorManager.unregisterListener(this)
+        binding.map.onPause()
     }
 
-    private val openMenu = {
-        binding.menu.root.visibility = View.VISIBLE
-        binding.footer.menuButton.setImageResource(R.drawable.close_button)
-        isMenu = !isMenu
+    override fun onDestroy() {
+        leaveSession()
+        super.onDestroy()
+        binding.map.onDestroy()
+        activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        (activity as AppCompatActivity).supportActionBar?.show()
+
     }
 
-    private fun buttonPressed(view: View?) {
-        if (binding.startFinishCall.text == resources.getString(R.string.hang_up)) {
-            // Already connected to a session
-            Log.d(TAG, "buttonPressed: leave")
-            leaveSession()
-            return
+    override fun onStop() {
+        leaveSession()
+        mFusedLocationClient.removeLocationUpdates(locationCallback)
+        super.onStop()
+        binding.map.onStop()
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        binding.map.onLowMemory()
+    }
+
+    @SuppressLint("MissingPermission")
+    override fun onStart() {
+        super.onStart()
+        binding.map.onStart()
+
+        if (PermissionHelper.hasLocationPermission(requireContext())) {
+            mFusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null)
+            if (mMap != null && checkLocationServicesStatus()) mMap!!.isMyLocationEnabled = true
         }
-//        if (arePermissionGranted()) {
-        Log.d(TAG, "buttonPressed: join")
-        initViews()
-        viewToConnectingState()
-        APPLICATION_SERVER_URL = getString(R.string.application_server_url)
-        httpClient = CustomHttpClient(APPLICATION_SERVER_URL)
-        val sessionId = binding.sessionName.text.toString()
-        getToken(sessionId)
-//        } else {
-//            val permissionsFragment: DialogFragment = PermissionsDialogFragment()
-//            permissionsFragment.show(getSupportFragmentManager(), "Permissions Fragment")
-//        }
+    }
+
+    override fun onAttach(context: Context) {
+        super.onAttach(context)
+        callback = object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                leaveSession()
+            }
+        }
+        requireActivity().onBackPressedDispatcher.addCallback(this, callback)
+    }
+
+    override fun onDetach() {
+        super.onDetach()
+        callback.remove()
+    }
+
+    fun addMarkerUser(marker: MutableList<LatLng>) {
+        marker.forEachIndexed { index, latLng ->
+            val userLatLng = LatLng(latLng.latitude, latLng.longitude)
+
+            val markerOptions = MarkerOptions()
+            markerOptions.position(userLatLng)
+            markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.game_user_marker))
+
+            if (userMarkers.size <= index) {
+                userMarkers.add(index, mMap!!.addMarker(markerOptions))
+            } else {
+                userMarkers[index] = mMap!!.addMarker(markerOptions)
+            }
+
+        }
     }
 
     private fun setDefaultLocation() {
@@ -284,6 +396,7 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
         mMap = googleMap
 
         setDefaultLocation()
+
         mMap!!.apply {
             uiSettings.isMyLocationButtonEnabled = false
             uiSettings.isMapToolbarEnabled = false
@@ -305,16 +418,17 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
             )
 
         }
+//        onAddCircle(roomData.distance)
     }
 
-    fun getCurrentAddress(latlng: LatLng): String {
+    fun getCurrentAddress(latLng: LatLng): String {
         //지오코더: GPS를 주소로 변환
         val geocoder = Geocoder(requireContext(), Locale.getDefault())
         val addresses: List<Address>?
         try {
             addresses = geocoder.getFromLocation(
-                latlng.latitude,
-                latlng.longitude,
+                latLng.latitude,
+                latLng.longitude,
                 1
             )
         } catch (ioException: IOException) {
@@ -335,18 +449,46 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
         }
     }
 
+    //마커 , 원추가
+    private fun onAddCircle(meter: Double) {
+        // 반경 1KM원
+        circle?.remove()
+        circle = mMap!!.addCircle(
+            CircleOptions().center(
+                if (currentPosition != null) {
+                    LatLng(
+                        currentPosition!!.latitude,
+                        currentPosition!!.longitude
+                    )
+                } else {
+                    defaultLocation
+                }
+            ) //원점
+                .radius(meter) //반지름 단위 : m
+                .strokeWidth(2f) //선너비 0f : 선없음
+                .strokeColor(ContextCompat.getColor(requireContext(), R.color.blue))
+                .fillColor(ContextCompat.getColor(requireContext(), R.color.blue_trans)) //배경색
+        )
+    }
+
     fun setCurrentLocation(location: Location) {
         val currentLatLng = LatLng(location.latitude, location.longitude)
         val cameraUpdate = CameraUpdateFactory.newLatLng(currentLatLng)
         mMap!!.moveCamera(cameraUpdate)
     }
 
-
     private fun checkLocationServicesStatus(): Boolean {
         val locationManager =
             activity?.getSystemService(AppCompatActivity.LOCATION_SERVICE) as LocationManager
         return (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
                 || locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER))
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        mMap.let { map ->
+            outState.putParcelable(KEY_LOCATION, currentPosition)
+        }
+        super.onSaveInstanceState(outState)
     }
 
     // OpenVidu 토큰을 요청
@@ -413,7 +555,8 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
     // 토큰을 얻으면 Session, LocalParticipant를 생성, 카메라를 캡쳐한다.
     private fun getTokenSuccess(token: String, sessionId: String) {
         // Initialize our session
-        session = Session(
+        Log.d(TAG, "getTokenSuccess: fragment : $this")
+        session = SessionGame(
             sessionId,
             token,
             binding.pager,
@@ -421,9 +564,9 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
         )
 
         // Initialize our local participant and start local camera
-        val participantName = binding.participantName.text.toString()
+        val participantName = user.nickname
         val localParticipant =
-            LocalParticipant(
+            LocalParticipantGame(
                 participantName,
                 session!!,
                 requireContext(),
@@ -432,11 +575,10 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
         localParticipant.startCamera()
 
         activity?.runOnUiThread {
-            binding.mainParticipant.text = binding.participantName.text.toString()
+            binding.mainParticipant.text = participantName
             binding.mainParticipant.setPadding(20, 3, 20, 3)
 
         }
-
 
         // Initialize and connect the websocket to OpenVidu Server
         startWebSocket()
@@ -445,13 +587,10 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
     private fun startWebSocket() {
         session?.let {
 
-            CustomWebSocket(session!!, this@GameViewFragment).apply {
+            CustomWebSocketGame(session!!, this@GameViewFragment).apply {
                 this.execute()
                 session?.setWebSocket(this)
-
             }
-
-
         }
     }
 
@@ -460,7 +599,6 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
             val toast: Toast =
                 Toast.makeText(context, "Error connecting to $url", Toast.LENGTH_LONG)
             toast.show()
-            viewToDisconnectedState()
         }
         Handler(requireContext().mainLooper).post(myRunnable)
     }
@@ -473,74 +611,37 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
         binding.localGlSurfaceView.setZOrderMediaOverlay(true)
     }
 
-    fun viewToDisconnectedState() {
-        activity?.runOnUiThread {
-            binding.localGlSurfaceView.clearImage()
-            binding.localGlSurfaceView.release()
-            binding.startFinishCall.text = resources.getString(R.string.start_button)
-            binding.startFinishCall.isEnabled = true
-            binding.applicationServerUrl.isEnabled = true
-            binding.applicationServerUrl.isFocusableInTouchMode = true
-            binding.sessionName.isEnabled = true
-            binding.sessionName.isFocusableInTouchMode = true
-            binding.participantName.isEnabled = true
-            binding.participantName.isFocusableInTouchMode = true
-            binding.mainParticipant.text = null
-            binding.mainParticipant.setPadding(0, 0, 0, 0)
-        }
-
-    }
-
-    fun viewToConnectingState() {
-        activity?.runOnUiThread {
-            binding.startFinishCall.isEnabled = false
-            binding.applicationServerUrl.isEnabled = false
-            binding.applicationServerUrl.isEnabled = false
-            binding.sessionName.isEnabled = false
-            binding.sessionName.isEnabled = false
-            binding.participantName.isEnabled = false
-            binding.participantName.isEnabled = false
-        }
-    }
-
-    fun viewToConnectedState() {
-        activity?.runOnUiThread {
-            binding.startFinishCall.text = resources.getString(R.string.hang_up)
-            binding.startFinishCall.isEnabled = true
-        }
-    }
-
-    fun createRemoteParticipantVideo(remoteParticipant: RemoteParticipant) {
+    fun createRemoteParticipantVideo(remoteParticipant: RemoteParticipantGame) {
         val mainHandler: Handler = Handler(requireContext().mainLooper)
         val myRunnable = Runnable {
-            val rowView: View =
-                this.layoutInflater.inflate(R.layout.peer_video, null)
-            val lp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            lp.setMargins(0, 0, 0, 20)
-            rowView.layoutParams = lp
-            val rowId = View.generateViewId()
-            rowView.id = rowId
-            binding.pager.addView(rowView)
-            val videoView =
-                (rowView as ViewGroup).getChildAt(0) as SurfaceViewRenderer
-            remoteParticipant.videoView = videoView
-            videoView.setMirror(false)
-            val rootEglBase = EglBase.create()
-            videoView.init(rootEglBase.eglBaseContext, null)
-            videoView.setZOrderMediaOverlay(true)
-            val textView = rowView.getChildAt(1)
-            remoteParticipant.participantNameText = textView as TextView
-            remoteParticipant.view = rowView
-            remoteParticipant.participantNameText!!.text = remoteParticipant.participantName
-            remoteParticipant.participantNameText!!.setPadding(20, 3, 20, 3)
+//            val rowView: View =
+//                this.layoutInflater.inflate(R.layout.peer_video, null)
+//            val lp = LinearLayout.LayoutParams(
+//                LinearLayout.LayoutParams.WRAP_CONTENT,
+//                LinearLayout.LayoutParams.WRAP_CONTENT
+//            )
+//            lp.setMargins(0, 0, 0, 20)
+//            rowView.layoutParams = lp
+//            val rowId = View.generateViewId()
+//            rowView.id = rowId
+//            binding.pager.addView(rowView)
+//            val videoView =
+//                (rowView as ViewGroup).getChildAt(0) as SurfaceViewRenderer
+//            remoteParticipant.videoView = videoView
+//            videoView.setMirror(false)
+//            val rootEglBase = EglBase.create()
+//            videoView.init(rootEglBase.eglBaseContext, null)
+//            videoView.setZOrderMediaOverlay(true)
+//            val textView = rowView.getChildAt(1)
+//            remoteParticipant.participantNameText = textView as TextView
+//            remoteParticipant.view = rowView
+//            remoteParticipant.participantNameText!!.text = remoteParticipant.participantName
+//            remoteParticipant.participantNameText!!.setPadding(20, 3, 20, 3)
         }
         mainHandler.post(myRunnable)
     }
 
-    fun setRemoteMediaStream(stream: MediaStream, remoteParticipant: RemoteParticipant) {
+    fun setRemoteMediaStream(stream: MediaStream, remoteParticipant: RemoteParticipantGame) {
         val videoTrack = stream.videoTracks[0]
         videoTrack.addSink(remoteParticipant.videoView)
         activity?.runOnUiThread {
@@ -551,7 +652,6 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
     fun leaveSession() {
         session?.leaveSession()
         httpClient?.dispose()
-        viewToDisconnectedState()
     }
 
     private fun arePermissionGranted(): Boolean {
@@ -559,18 +659,6 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
             requireContext()
         )
     }
-
-    override fun onDestroy() {
-        leaveSession()
-        super.onDestroy()
-    }
-
-    override fun onStop() {
-        leaveSession()
-        mFusedLocationClient.removeLocationUpdates(locationCallback)
-        super.onStop()
-    }
-
 
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
@@ -647,29 +735,32 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
         }
     }
 
-    @SuppressLint("MissingPermission")
-    override fun onStart() {
-        super.onStart()
 
-        if (PermissionHelper.hasLocationPermission(requireContext())) {
-            mFusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null)
-            if (mMap != null && checkLocationServicesStatus()) mMap!!.isMyLocationEnabled = true
+    private lateinit var chaserVideoList: List<GameVideoFragment>
+    private lateinit var runnerVideoList: List<GameVideoFragment>
+    private lateinit var sensorValue: String
+
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        event?.let {
+            val x = event.values[0]
+            val y = event.values[1]
+            val z = event.values[2]
+            val r = sqrt(x.pow(2) + y.pow(2) + z.pow(2))
+
+            Log.d("MainActivity", "onSensorChanged: x: $x, y: $y, z: $z, R: $r")
+            val xrAngle = (90 - acos(x / r) * 180 / PI).toFloat()
+            val yrAngle = (90 - acos(y / r) * 180 / PI).toFloat()
+
+            sensorValue = String.format(
+                "x-rotation: %.1f\u00B0 \n y-rotation: %.1f\u00B0", xrAngle, yrAngle
+            )
+            Log.d(TAG, "onSensorChanged: sensorValue ${sensorValue}")
         }
     }
 
-    override fun onAttach(context: Context) {
-        super.onAttach(context)
-        callback = object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                leaveSession()
-            }
-        }
-        requireActivity().onBackPressedDispatcher.addCallback(this, callback)
-    }
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
 
-    override fun onDetach() {
-        super.onDetach()
-        callback.remove()
     }
 
     companion object {
@@ -678,7 +769,8 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
         private const val UPDATE_INTERVAL = 1000L // 1초
         private const val MIN_UPDATE_INTERVAL = 500L // 0.5초
         private const val MIN_UPDATE_DISTANCE = 10f // 10m
-        private const val DEFAULT_ZOOM = 17f
+        private const val DEFAULT_ZOOM = 15f
+        private const val KEY_LOCATION = "location"
     }
 
     private inner class GameViewFragmentAdapter(fragment: Fragment) :
@@ -687,8 +779,8 @@ class GameViewFragment : Fragment(), OnMapReadyCallback {
         override fun getItemCount(): Int = NUM_PAGES
 
         override fun createFragment(position: Int): Fragment {
+
             return ShopFragment()
         }
     }
-
-}*/
+}

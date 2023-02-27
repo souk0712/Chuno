@@ -1,3 +1,4 @@
+/*
 package com.leesfamily.chuno.openvidu.waiting;
 
 import android.util.Log;
@@ -105,3 +106,4 @@ public abstract class ParticipantWaiting {
         }
     }
 }
+*/

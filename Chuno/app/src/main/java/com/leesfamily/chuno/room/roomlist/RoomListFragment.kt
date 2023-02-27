@@ -19,10 +19,16 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.tasks.Task
+import com.google.gson.Gson
+import com.leesfamily.chuno.BuildConfig
 import com.leesfamily.chuno.MainViewModel
 import com.leesfamily.chuno.R
 import com.leesfamily.chuno.databinding.FragmentRoomListBinding
+import com.leesfamily.chuno.network.data.AllRoomList
 import com.leesfamily.chuno.network.room.RoomGetter
+import com.leesfamily.chuno.network.websocket.MessageListener
+import com.leesfamily.chuno.network.websocket.WebSocketListener
+import com.leesfamily.chuno.network.websocket.WebSocketManager
 import com.leesfamily.chuno.util.PermissionHelper
 import com.leesfamily.chuno.util.custom.CreateRoomDialog1
 import com.leesfamily.chuno.util.custom.CreateRoomDialog2
@@ -31,6 +37,7 @@ import com.leesfamily.chuno.util.login.LoginPrefManager
 import com.leesfamily.chuno.util.login.UserDB
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlin.concurrent.thread
 
 /**
  * 게임을 위한 방의 목록을 보여주는 Fragment이다.
@@ -38,7 +45,7 @@ import kotlinx.coroutines.launch
 private const val ARG_PARAM1 = "param1"
 private const val ARG_PARAM2 = "param2"
 
-class RoomListFragment : Fragment(), CreateRoomDialogInterface {
+class RoomListFragment : Fragment(), CreateRoomDialogInterface, MessageListener {
     lateinit var binding: FragmentRoomListBinding
     private var param1: String? = null
     private var param2: String? = null
@@ -53,11 +60,12 @@ class RoomListFragment : Fragment(), CreateRoomDialogInterface {
 
     private lateinit var dialog1: CreateRoomDialog1
     private lateinit var dialog2: CreateRoomDialog2
-    lateinit var updateRoomList: Task<Location>
+//    lateinit var updateRoomList: Task<Location>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        viewModel.initWebSocketManager(this)
+        viewModel.connectWebSocket()
         arguments?.let {
             param1 = it.getString(ARG_PARAM1)
             param2 = it.getString(ARG_PARAM2)
@@ -87,10 +95,14 @@ class RoomListFragment : Fragment(), CreateRoomDialogInterface {
                 setOnRefreshListener {
                     // 새로고침 코드를 작성
                     Log.d(TAG, "onCreateView: refreshing recyclerview")
-                    if (updateRoomList.isComplete)
-                        getRoomList()
+//                    if (updateRoomList.isComplete)
+                    getRoomList()
                     // 새로고침 완료시, 새로고침 아이콘이 사라질 수 있게 isRefreshing = false
-                    this.isRefreshing = false
+                    viewModel.isFinish.observe(viewLifecycleOwner) {
+                        if (it) {
+                            this.isRefreshing = false
+                        }
+                    }
 
                 }
             }
@@ -113,64 +125,35 @@ class RoomListFragment : Fragment(), CreateRoomDialogInterface {
 
     @SuppressLint("MissingPermission")
     fun getRoomList() {
-        updateRoomList =
-            fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
-                location?.let {
-                    Log.d(TAG, "onCreateView: roomList 받아오기")
-                    lifecycleScope.launch(Dispatchers.IO) {
-                        RoomGetter().requestRoomList(
-                            LatLng(
-                                location.latitude,
-                                location.longitude
+        viewModel.curRoomList.observe(viewLifecycleOwner) {
+            if (mainViewModel.token.value != null && it != null) {
+                viewModel.setRoomList(mainViewModel.token.value!!, it)
+                viewModel.isFinish.observe(viewLifecycleOwner) {
+                    binding.allRoomList.apply {
+                        layoutManager = when {
+                            columnCount <= 1 -> LinearLayoutManager(
+                                requireContext()
                             )
-                        )
-                            ?.let { roomList ->
-
-                                launch(Dispatchers.Main) {
-                                    binding.myRoomList.apply {
-                                        layoutManager = when {
-                                            columnCount <= 1 -> LinearLayoutManager(
-                                                requireContext()
-                                            )
-                                            else -> GridLayoutManager(
-                                                requireContext(),
-                                                columnCount
-                                            )
-                                        }
-                                        adapter =
-                                            RoomItemRecyclerViewAdapter(
-                                                roomList,
-                                                navigate(),
-                                                viewModel
-                                            )
-                                    }
-                                    binding.allRoomList.apply {
-                                        layoutManager = when {
-                                            columnCount <= 1 -> LinearLayoutManager(
-                                                requireContext()
-                                            )
-                                            else -> GridLayoutManager(
-                                                requireContext(),
-                                                columnCount
-                                            )
-                                        }
-                                        adapter =
-                                            RoomItemRecyclerViewAdapter(
-                                                roomList,
-                                                navigate(),
-                                                viewModel
-                                            )
-
-                                    }
-                                    binding.loadingBar.root.visibility = View.GONE
-                                    binding.refreshLayout.visibility = View.VISIBLE
-                                    binding.createRoom.visibility = View.VISIBLE
-                                }
-
-                            }
+                            else -> GridLayoutManager(
+                                requireContext(),
+                                columnCount
+                            )
+                        }
+                        adapter =
+                            RoomItemRecyclerViewAdapter(
+                                viewModel.roomList.value ?: listOf(),
+                                navigate(),
+                                viewModel
+                            )
                     }
+                    binding.loadingBar.root.visibility = View.GONE
+                    binding.refreshLayout.visibility = View.VISIBLE
+                    binding.createRoom.visibility = View.VISIBLE
                 }
             }
+        }
+
+
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -197,6 +180,37 @@ class RoomListFragment : Fragment(), CreateRoomDialogInterface {
         dialog1.show(childFragmentManager, "createRoomDialog1")
     }
 
+    override fun onConnectSuccess() {
+        viewModel.getWebSocketAllRoomList()
+    }
+
+    override fun onConnectFailed() {
+    }
+
+    override fun onClose() {
+    }
+
+    override fun onMessage(text: String?) {
+        val json = Gson().fromJson(text, AllRoomList::class.java)
+        Log.d(TAG, "onMessage: roomlistfragment ${json.roomInfo}")
+        when (json.type) {
+            "rooms" -> {
+                Log.d(TAG, "onMessage: rooms!!!!")
+                viewModel.setCurRoomInfoList(json.roomInfo)
+                Log.d(TAG, "onMessage: all_room ${json.roomInfo}")
+            }
+            "me" -> {
+                Log.d(TAG, "onMessage: me")
+            }
+            "leave" -> {
+                Log.d(TAG, "onMessage: leave")
+            }
+            "chat" -> {
+                Log.d(TAG, "onMessage: chat")
+            }
+        }
+    }
+
     companion object {
         private const val TAG = "추노_RoomListFragment"
         const val ARG_COLUMN_COUNT = "column-count"
@@ -211,6 +225,5 @@ class RoomListFragment : Fragment(), CreateRoomDialogInterface {
                 }
             }
     }
-
 
 }

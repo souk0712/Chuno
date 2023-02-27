@@ -60,6 +60,8 @@
         <action
             android:id="@+id/action_waitingRoomFragment_to_game_view"
             app:destination="@id/game_view" />
+<!--        <argument app:argType="Long"-->
+<!--             android:defaultValue="0" android:name="roomId" app:nullable="false"/>-->
     </fragment>
 
 </navigation>

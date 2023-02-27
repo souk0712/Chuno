@@ -1,3 +1,4 @@
+/*
 package com.leesfamily.chuno.openvidu.waiting;
 
 import android.view.View;
@@ -56,3 +57,4 @@ public class RemoteParticipantWaiting extends ParticipantWaiting {
         super.dispose();
     }
 }
+*/

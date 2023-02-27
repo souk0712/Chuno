@@ -24,9 +24,6 @@ import com.leesfamily.chuno.util.login.UserDB
 import com.leesfamily.chuno.databinding.FragmentMyPageBinding
 import com.leesfamily.chuno.room.shop.ShopFragment
 
-private const val ARG_PARAM1 = "param1"
-private const val ARG_PARAM2 = "param2"
-
 
 class MyPageFragment : Fragment() {
     private lateinit var binding: FragmentMyPageBinding
@@ -37,10 +34,6 @@ class MyPageFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        arguments?.let {
-            param1 = it.getString(ARG_PARAM1)
-            param2 = it.getString(ARG_PARAM2)
-        }
     }
 
     override fun onCreateView(
@@ -81,7 +74,7 @@ class MyPageFragment : Fragment() {
         }
         // https://i8d208.p.ssafy.io/api/resources/images?path=item/item2.png
 
-        user?.let {
+        mainViewModel.user.observe(viewLifecycleOwner){
             binding.userName.text = it.nickname
             binding.userLevelText.text = it.level.toString()
             binding.userMoney.text = it.money.toString()
@@ -96,7 +89,7 @@ class MyPageFragment : Fragment() {
             it.profile.let {
                 val server_url = BuildConfig.SERVER_URL
                 val imageUrl =
-                    "${server_url}/resources/images?path=${user.profile?.path}"
+                    "${server_url}/resources/images?path=${user?.profile?.path}"
                 Log.d(TAG, "onCreateView: imageUrl $imageUrl")
 
                 Glide.with(requireContext())
@@ -105,7 +98,6 @@ class MyPageFragment : Fragment() {
                     .error(R.drawable.account)
 //                    .skipMemoryCache(true)
 //                    .diskCacheStrategy(DiskCacheStrategy.NONE)
-                    .fallback(R.drawable.account)
                     .into(binding.profilePhoto)
             }
             val userItems = it.items
@@ -178,13 +170,5 @@ class MyPageFragment : Fragment() {
     companion object {
         private const val TAG = "추노_MyPageFragment"
 
-        @JvmStatic
-        fun newInstance(param1: String, param2: String) =
-            MyPageFragment().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_PARAM1, param1)
-                    putString(ARG_PARAM2, param2)
-                }
-            }
     }
 }

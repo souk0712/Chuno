@@ -117,7 +117,8 @@ class DateTimePicker(
                     dateTimePickerInterface?.onOkButtonClicked(
                         date,
                         hourValue,
-                        minuteValue
+                        minuteValue,
+                        isToday
                     )
                     dismiss()
                 } else {

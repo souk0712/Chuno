@@ -1,4 +1,3 @@
-/*
 package com.leesfamily.chuno.openvidu.game;
 
 import android.content.Context;
@@ -19,7 +18,7 @@ import org.webrtc.VideoSource;
 import java.util.ArrayList;
 import java.util.Collection;
 
-public class LocalParticipant extends Participant {
+public class LocalParticipantGame extends ParticipantGame {
 
     private Context context;
     private SurfaceViewRenderer localVideoView;
@@ -29,7 +28,7 @@ public class LocalParticipant extends Participant {
     private Collection<IceCandidate> localIceCandidates;
     private SessionDescription localSessionDescription;
 
-    public LocalParticipant(String participantName, Session session, Context context, SurfaceViewRenderer localVideoView) {
+    public LocalParticipantGame(String participantName, SessionGame session, Context context, SurfaceViewRenderer localVideoView) {
         super(participantName, session);
         this.localVideoView = localVideoView;
         this.context = context;
@@ -119,4 +118,3 @@ public class LocalParticipant extends Participant {
         }
     }
 }
-*/

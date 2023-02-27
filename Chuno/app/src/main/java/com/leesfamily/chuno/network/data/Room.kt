@@ -3,31 +3,29 @@ package com.leesfamily.chuno.network.data
 import android.graphics.Point
 
 data class Room(
-     var id: Long,
+    var id: Long,
 
-     var title: String,
+    var title: String,
 
-     var password: String?,
+    var password: String?,
 
-     var isPublic: String,
+    var isPublic: Boolean,
 
-     var lat: Double,
+    var maxPlayers: Int = 10,
 
-     var lng: Double,
+    var currentPlayers: Int,
 
-     var currentPlayers: Int = 1,
+    var radius: Int,
 
-     var maxPlayers: Int = 10,
+    var distance: Double,
 
-     var location: Point,
+    var host: User,
 
-     var radius: Int,
+    var dateTime: DateTime,
 
-     var dateTime: DateTime,
+    var lat: Double,
 
-     var host: User,
+    var lng: Double,
 
-     var distance: Double,
-
-     var isPushed: Boolean
+    var pushed: Boolean
 )

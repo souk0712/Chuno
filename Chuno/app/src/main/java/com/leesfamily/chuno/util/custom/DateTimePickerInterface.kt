@@ -6,6 +6,7 @@ interface DateTimePickerInterface {
     fun onOkButtonClicked(
         date: Calendar?,
         hourValue: Int?,
-        minuteValue: Int?
+        minuteValue: Int?,
+        isToday:Boolean
     )
 }
