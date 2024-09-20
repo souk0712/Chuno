@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/start_nav_graph"
+    >
+    <fragment
+        android:id="@+id/loginFragment"
+        android:name="com.leesfamily.chuno.start.LoginFragment"
+        android:label="LoginFragment"
+        tools:layout="@layout/fragment_login">
+        <action
+            android:id="@+id/action_loginFragment_to_inputInfoFragment"
+            app:destination="@id/inputInfoFragment"
+            app:launchSingleTop="true" />
+    </fragment>
+    <fragment
+        android:id="@+id/inputInfoFragment"
+        android:name="com.leesfamily.chuno.start.InputInfoFragment"
+        android:label="InputInfoFragment"
+        tools:layout="@layout/fragment_input_info">
+        <action
+            android:id="@+id/action_inputInfoFragment_to_homeFragment"
+            app:destination="@id/homeFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/permissionFragment"
+        android:name="com.leesfamily.chuno.start.PermissionFragment"
+        android:label="PermissionFragment"
+        tools:layout="@layout/fragment_permission">
+        <action
+            android:id="@+id/action_permissionFragment_to_loginFragment"
+            app:destination="@id/loginFragment"/>
+    </fragment>
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.leesfamily.chuno.room.HomeFragment"
+        android:label="HomeFragment"
+        tools:layout="@layout/home_fragment">
+        <action
+            android:id="@+id/action_homeFragment_to_waitingRoomFragment"
+            app:destination="@id/waitingRoomFragment"
+            app:popUpTo="@id/homeFragment"
+            app:popUpToInclusive="false" />
+        <action
+            android:id="@+id/action_homeFragment_to_loginFragment"
+            app:destination="@id/loginFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/game_view"
+        android:name="com.leesfamily.chuno.game.game.GameViewFragment"
+        android:label="GameViewFragment"
+        tools:layout="@layout/fragment_game_view" />
+    <fragment
+        android:id="@+id/waitingRoomFragment"
+        android:name="com.leesfamily.chuno.game.wait.WaitingRoomFragment"
+        android:label="fragment_waiting_room_list"
+        tools:layout="@layout/fragment_waiting_room_list" >
+        <action
+            android:id="@+id/action_waitingRoomFragment_to_game_view"
+            app:destination="@id/game_view" />
+<!--        <argument app:argType="Long"-->
+<!--             android:defaultValue="0" android:name="roomId" app:nullable="false"/>-->
+    </fragment>
+
+</navigation>
