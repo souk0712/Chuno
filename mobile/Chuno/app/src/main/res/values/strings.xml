@@ -1,0 +1,96 @@
+<resources>
+    <string name="app_name">추노</string>
+
+    <string name="permission_title">권한안내</string>
+    <string name="ok">확인</string>
+    <string name="permission_optional">선택적 접근 권한</string>
+    <string name="permission_essential">필수적 접근 권한</string>
+    <string name="permission_text">추노는 다음 권한을 필요로 합니다.\n아래의 권한을 허용해 주세요.</string>
+
+    <string name="logout">로그아웃</string>
+    <string name="nickname">닉네임</string>
+    <string name="profile_text">프로필 입력</string>
+    <string name="save">저장</string>
+    <string name="login_text">계정과 비밀번호 입력없이\n카카오톡으로 로그인 해 보세요.</string>
+    <string name="my_create_room">내가 만든 방</string>
+    <string name="all_room">전체 방</string>
+
+    <string name="room_list_title">저잣거리</string>
+    <string name="my_page_title">프로필</string>
+    <string name="friend_list_title">친구 목록</string>
+    <string name="friend_manage_title">친구 관리</string>
+    <string name="shop_title">상점</string>
+
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="nick_limit_message">닉네임은 최대 6글자까지 가능합니다.</string>
+    <string name="nick_overlap_message">이미 사용된 닉네임입니다.</string>
+    <string name="nick_allow_message">사용 가능한 닉네임입니다.</string>
+    <string name="nick_no_input_message">닉네임을 입력해주세요.</string>
+    <string name="phone_no_input_message">올바른 전화번호를 입력해주세요.</string>
+
+    <string name="room_no_title_message">방 제목을 설정해주세요.</string>
+    <string name="room_no_password_message">비밀번호를 설정해주세요.</string>
+    <string name="room_no_reservation_message">예약 일정을 설정해주세요.</string>
+
+    <string name="notify_on">알림 신청이 완료되었습니다.</string>
+    <string name="notify_off">알림 신청이 해제되었습니다.</string>
+
+    <string name="password_wrong">비밀번호가 틀렸습니다.</string>
+
+    <string name="delete_account">회원탈퇴</string>
+    <string name="room_title">방 제목</string>
+    <string name="password_text">비밀번호</string>
+    <string name="reservation_text">예약</string>
+    <string name="create_room">방 만들기</string>
+    <string name="min_text">분</string>
+    <string name="hour_text">시</string>
+    <string name="before">이전</string>
+    <string name="room_info_text">방 정보</string>
+    <string name="out">나가기</string>
+    <string name="notify_off_text">알림 끄기</string>
+    <string name="notify_on_text">알림 켜기</string>
+    <string name="around_text">반경</string>
+    <string name="room_title_search_hint">방 제목을 검색해보세요.</string>
+    <string name="badge_text">뱃지</string>
+    <string name="friend_search_hint">친구 검색</string>
+    <string name="chaser_private_items">추노꾼용</string>
+
+    <string name="max_person_count_message">최대 인원은 10명입니다.</string>
+    <string name="min_person_count_message">최소 인원은 4명입니다.</string>
+    <string name="create_room_message">방 생성이 완료되었습니다.</string>
+    <string name="lat_lng_loading_message">위치를 받아오고있습니다.\n잠시만 기다려주세요.</string>
+    <string name="today_text">오늘</string>
+    <string name="tomorrow_text">내일</string>
+    <string name="cancel">취소</string>
+    <string name="setting">설정</string>
+    <string name="date_warning_message">현재보다 이후의 시간으로 설정해주세요.</string>
+    <string name="no_internet_connection">인터넷 연결이 안되있습니다. 인터넷을 연결해주세요.</string>
+
+    <string name="camera_permission_message">게임 내의 카메라 공유를 위해\n권한이 필요합니다.</string>
+    <string name="location_permission_message">게임 내의 위치공유를 위해\n권한이 필요합니다.</string>
+    <string name="call_permission_message">게임 내의 영상통화를 위해\n권한이 필요합니다.</string>
+    <string name="record_permission_message">게임 내의 음성채팅을 위해 \n 권한이 필요합니다.</string>
+    <string name="ready_text">준비</string>
+    <string name="you">당신은</string>
+    <string name="is">입니다.</string>
+    <string name="buy">구매</string>
+    <string name="phone_text">전화번호</string>
+    <string name="no_money">엽전이 부족하여 구매할 수 없습니다.</string>
+
+
+    <string name="start_button">Join</string>
+    <string name="session_name">Session Name</string>
+    <string name="default_session_name">SessionA</string>
+    <string name="participant_name">Participant Name</string>
+    <string name="default_participant_name">Participant</string>
+    <string name="hang_up">Leave session</string>
+    <string name="no_connection">COULD NOT ESTABLISH THE CONNECTION, TRY AGAIN </string>
+    <string name="no_permissions_granted">We can not give you service without your permission</string>
+    <string name="permissions_dialog_title">We need your help</string>
+    <string name="accept_permissions_dialog">GIVE PERMISSIONS!</string>
+    <string name="cancel_dialog">CANCEL</string>
+    <string name="secret_setting">공개설정</string>
+
+
+</resources>
